@@ -112,7 +112,7 @@ class CipherStorageKeystoreRsaEcb(reactContext: ReactApplicationContext) :
 
     try {
       // key is always NOT NULL otherwise GeneralSecurityException raised
-      key = extractGeneratedKey(safeAlias, level, retries)
+      key = extractExistingKey(safeAlias, retries)
 
       val results =
         CipherStorage.DecryptionResult(decryptBytes(key, username), decryptBytes(key, password))

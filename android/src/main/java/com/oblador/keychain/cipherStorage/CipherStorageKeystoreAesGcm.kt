@@ -129,7 +129,7 @@ class CipherStorageKeystoreAesGcm(reactContext: ReactApplicationContext, private
         var key: Key? = null
 
         try {
-            key = extractGeneratedKey(safeAlias, level, retries)
+            key = extractExistingKey(safeAlias, retries)
             val results =
                 CipherStorage.DecryptionResult(
                     decryptBytes(key, username),

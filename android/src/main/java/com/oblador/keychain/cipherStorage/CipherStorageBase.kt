@@ -304,6 +304,29 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
     return key
   }
 
+  /**
+   * Get the existing key for decryption. Unlike [extractGeneratedKey] it never generates or
+   * deletes a key: stored data decrypts only with the key that wrote it, so replacing that key
+   * on a failed read would make the stored secret permanently unreadable.
+   */
+  @Throws(GeneralSecurityException::class)
+  protected fun extractExistingKey(safeAlias: String, retries: AtomicInteger): Key {
+    while (true) {
+      val keyStore = getKeyStoreAndLoad()
+      if (!keyStore.containsAlias(safeAlias)) {
+        throw KeyStoreAccessException("No key found for alias: $safeAlias")
+      }
+
+      try {
+        return keyStore.getKey(safeAlias, null)
+          ?: throw KeyStoreAccessException("Empty key extracted!")
+      } catch (ex: UnrecoverableKeyException) {
+        if (retries.getAndDecrement() <= 0) throw ex
+        Log.w(LOG_TAG, "Unrecoverable key for alias: $safeAlias, retrying without deleting it", ex)
+      }
+    }
+  }
+
   /** Verify that provided key satisfy minimal needed level. */
   @Throws(GeneralSecurityException::class)
   protected fun validateKeySecurityLevel(level: SecurityLevel, key: Key): Boolean {

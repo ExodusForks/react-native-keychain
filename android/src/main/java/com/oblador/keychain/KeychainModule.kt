@@ -214,10 +214,12 @@ class KeychainModule(reactContext: ReactApplicationContext) :
   ) {
     coroutineScope.launch {
       mutex.withLock {
+        var selectedStorage: CipherStorage? = null
         try {
           throwIfEmptyLoginPassword(username, password)
           val level = getSecurityLevelOrDefault(options)
           val storage = getSelectedStorage(options)
+          selectedStorage = storage
           throwIfInsufficientLevel(storage, level)
           val promptInfo = getPromptInfo(options)
           val result = encryptToResult(alias, storage, username, password, level, promptInfo)
@@ -231,10 +233,14 @@ class KeychainModule(reactContext: ReactApplicationContext) :
           promise.reject(Errors.E_EMPTY_PARAMETERS, e)
         } catch (e: CryptoFailedException) {
           Log.e(KEYCHAIN_MODULE, e.message, e)
-          promise.reject(Errors.E_CRYPTO_FAILED, e)
+          rejectWithDiagnostics(
+            promise, Errors.E_CRYPTO_FAILED, e, KeychainDiagnostics.OPERATION_SAVE, selectedStorage, alias
+          )
         } catch (fail: Throwable) {
           Log.e(KEYCHAIN_MODULE, fail.message, fail)
-          promise.reject(Errors.E_UNKNOWN_ERROR, fail)
+          rejectWithDiagnostics(
+            promise, Errors.E_UNKNOWN_ERROR, fail, KeychainDiagnostics.OPERATION_SAVE, selectedStorage, alias
+          )
         }
       }
     }
@@ -272,6 +278,7 @@ class KeychainModule(reactContext: ReactApplicationContext) :
   private fun getGenericPassword(alias: String, options: ReadableMap?, promise: Promise) {
     coroutineScope.launch {
       mutex.withLock {
+        var cipher: CipherStorage? = null
         try {
           val resultSet = prefsStorage.getEncryptedEntry(alias)
           if (resultSet == null) {
@@ -282,7 +289,6 @@ class KeychainModule(reactContext: ReactApplicationContext) :
           val storageName = resultSet.cipherStorageName
           val rules = getSecurityRulesOrDefault(options)
           val promptInfo = getPromptInfo(options)
-          var cipher: CipherStorage? = null
 
           cipher = getCipherStorageByName(storageName)
           val decryptionResult = decryptCredentials(alias, cipher!!, resultSet, rules, promptInfo)
@@ -294,16 +300,49 @@ class KeychainModule(reactContext: ReactApplicationContext) :
           promise.resolve(credentials)
         } catch (e: KeyStoreAccessException) {
           Log.e(KEYCHAIN_MODULE, e.message!!)
-          promise.reject(Errors.E_KEYSTORE_ACCESS_ERROR, e)
+          rejectWithDiagnostics(
+            promise, Errors.E_KEYSTORE_ACCESS_ERROR, e, KeychainDiagnostics.OPERATION_READ, cipher, alias
+          )
         } catch (e: CryptoFailedException) {
           Log.e(KEYCHAIN_MODULE, e.message!!)
-          promise.reject(Errors.E_CRYPTO_FAILED, e)
+          rejectWithDiagnostics(
+            promise, Errors.E_CRYPTO_FAILED, e, KeychainDiagnostics.OPERATION_READ, cipher, alias
+          )
         } catch (fail: Throwable) {
           Log.e(KEYCHAIN_MODULE, fail.message, fail)
-          promise.reject(Errors.E_UNKNOWN_ERROR, fail)
+          rejectWithDiagnostics(
+            promise, Errors.E_UNKNOWN_ERROR, fail, KeychainDiagnostics.OPERATION_READ, cipher, alias
+          )
         }
       }
     }
+  }
+
+  /**
+   * Reject the same way `promise.reject(code, error)` does, with [KeychainDiagnostics] added under
+   * `userInfo`. Collecting them must never replace the original error, so a failure only drops them.
+   */
+  private fun rejectWithDiagnostics(
+    promise: Promise,
+    code: String,
+    error: Throwable,
+    operation: String,
+    storage: CipherStorage?,
+    alias: String
+  ) {
+    val userInfo = try {
+      Arguments.makeNativeMap(
+        mapOf(
+          KeychainDiagnostics.USER_INFO_KEY to
+            KeychainDiagnostics.describe(error, operation, storage, alias)
+        )
+      )
+    } catch (fail: Throwable) {
+      Log.w(KEYCHAIN_MODULE, "Collecting keychain diagnostics failed", fail)
+      null
+    }
+    // A null message falls back to the error's own message, as `reject(code, error)` does
+    promise.reject(code, null, error, userInfo)
   }
 
   @ReactMethod

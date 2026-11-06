@@ -37,6 +37,14 @@ interface CipherStorage {
     fun getSecurityLevel(): SecurityLevel = securityLevel
   }
 
+  /** State of the Keystore key behind an entry, for error reports. */
+  class KeyDescription(
+    /** Whether the Keystore holds a key under the alias, or null when the Keystore can't be read. */
+    val exists: Boolean?,
+    /** Where the key lives, such as `STRONGBOX`, or `UNREADABLE` when it exists but won't load. */
+    val securityLevel: String? = null
+  )
+
   // endregion
 
   // region API
@@ -82,6 +90,9 @@ interface CipherStorage {
    */
   @Throws(KeyStoreAccessException::class)
   fun getAllKeys(): Set<String>
+
+  /** Describe the key (by alias) for an error report. Never creates or deletes a key, never throws. */
+  fun describeKey(alias: String): KeyDescription
 
   // endregion
 

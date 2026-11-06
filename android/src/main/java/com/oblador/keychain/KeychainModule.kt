@@ -139,7 +139,10 @@ class KeychainModule(reactContext: ReactApplicationContext) :
   /** Launches a coroutine to perform non-blocking UI operations */
   private val coroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-  /** Mutex to prevent concurrent calls to Cipher, which doesn't support multi-threading */
+  /**
+   * Mutex to prevent concurrent calls to Cipher, which doesn't support multi-threading, and to keep
+   * save, read and delete of an entry from interleaving
+   */
   private val mutex = Mutex()
 
   // endregion
@@ -343,23 +346,28 @@ class KeychainModule(reactContext: ReactApplicationContext) :
   }
 
   private fun resetGenericPassword(alias: String, promise: Promise) {
-    try {
-      // First we clean up the cipher storage (using the cipher storage that was used to store the
-      // entry)
-      val resultSet = prefsStorage.getEncryptedEntry(alias)
-      if (resultSet != null) {
-        val cipherStorage = getCipherStorageByName(resultSet.cipherStorageName)
-        cipherStorage?.removeKey(alias)
+    // Same lock as save: a delete landing mid-save would leave the entry encrypted with a removed key
+    coroutineScope.launch {
+      mutex.withLock {
+        try {
+          // First we clean up the cipher storage (using the cipher storage that was used to store
+          // the entry)
+          val resultSet = prefsStorage.getEncryptedEntry(alias)
+          if (resultSet != null) {
+            val cipherStorage = getCipherStorageByName(resultSet.cipherStorageName)
+            cipherStorage?.removeKey(alias)
+          }
+          // And then we remove the entry in the shared preferences
+          prefsStorage.removeEntry(alias)
+          promise.resolve(true)
+        } catch (e: KeyStoreAccessException) {
+          Log.e(KEYCHAIN_MODULE, e.message!!)
+          promise.reject(Errors.E_KEYSTORE_ACCESS_ERROR, e)
+        } catch (fail: Throwable) {
+          Log.e(KEYCHAIN_MODULE, fail.message, fail)
+          promise.reject(Errors.E_UNKNOWN_ERROR, fail)
+        }
       }
-      // And then we remove the entry in the shared preferences
-      prefsStorage.removeEntry(alias)
-      promise.resolve(true)
-    } catch (e: KeyStoreAccessException) {
-      Log.e(KEYCHAIN_MODULE, e.message!!)
-      promise.reject(Errors.E_KEYSTORE_ACCESS_ERROR, e)
-    } catch (fail: Throwable) {
-      Log.e(KEYCHAIN_MODULE, fail.message, fail)
-      promise.reject(Errors.E_UNKNOWN_ERROR, fail)
     }
   }
 

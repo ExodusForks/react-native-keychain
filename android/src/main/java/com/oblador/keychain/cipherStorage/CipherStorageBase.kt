@@ -271,35 +271,10 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
         }
       }
 
-      // Attempt to retrieve the key
-      key = extractKey(keyStore, safeAlias, retries)
+      // Attempt to retrieve the key. A one-off read error must not delete it: the key may still be
+      // the only one that decrypts the entry already stored under this alias
+      key = extractExistingKey(safeAlias, retries)
     } while (key == null)
-
-    return key
-  }
-
-  /**
-   * Try to extract key by alias from keystore, in case of 'known android bug' reduce retry counter.
-   */
-  @Throws(GeneralSecurityException::class)
-  protected fun extractKey(keyStore: KeyStore, safeAlias: String, retry: AtomicInteger): Key? {
-    val key: Key?
-
-    try {
-      key = keyStore.getKey(safeAlias, null)
-    } catch (ex: UnrecoverableKeyException) {
-      // try one more time
-      if (retry.getAndDecrement() > 0) {
-        keyStore.deleteEntry(safeAlias)
-        return null
-      }
-      throw ex
-    }
-
-    // null if the given alias does not exist or does not identify a key-related entry.
-    if (key == null) {
-      throw KeyStoreAccessException("Empty key extracted!")
-    }
 
     return key
   }
@@ -487,20 +462,17 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
       return false
     }
 
-    try {
-      val keyInfo = getKeyInfo(key)
-      val blockModes = keyInfo.blockModes
-      if(keyInfo.isUserAuthenticationRequired != isBiometrySupported()){
-        return false
-      }
-      val expectedBlockMode = getEncryptionTransformation()
-        .split("/")[1] // Split "AES/GCM/NoPadding" and get "GCM"
-      return blockModes.any { mode ->
-        mode.equals(expectedBlockMode, ignoreCase = true)
-      }
-    } catch (e: GeneralSecurityException) {
-      Log.w(LOG_TAG, "Failed to check cipher configuration: ${e.message}")
+    // A failure to read the key's info propagates instead of returning false: false makes the
+    // caller delete the key, and a one-off Keystore error says nothing about the key itself
+    val keyInfo = getKeyInfo(key)
+    val blockModes = keyInfo.blockModes
+    if(keyInfo.isUserAuthenticationRequired != isBiometrySupported()){
       return false
+    }
+    val expectedBlockMode = getEncryptionTransformation()
+      .split("/")[1] // Split "AES/GCM/NoPadding" and get "GCM"
+    return blockModes.any { mode ->
+      mode.equals(expectedBlockMode, ignoreCase = true)
     }
   }
 

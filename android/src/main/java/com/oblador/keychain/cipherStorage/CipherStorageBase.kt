@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
+import android.security.keystore.KeyProperties
 import android.security.keystore.UserNotAuthenticatedException
 import android.util.Log
 import androidx.annotation.VisibleForTesting
@@ -58,6 +59,9 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
 
     /** Default charset encoding. */
     val UTF8: Charset = Charset.forName("UTF-8")
+
+    /** [CipherStorage.KeyDescription.securityLevel] of a key that exists but can't be loaded. */
+    const val KEY_UNREADABLE = "UNREADABLE"
 
     /** Convert provided service name to safe not-null/not-empty value. */
     fun getDefaultAliasIfEmpty(service: String?, fallback: String): String {
@@ -177,6 +181,28 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
       return HashSet(Collections.list(aliases))
     } catch (e: KeyStoreException) {
       throw KeyStoreAccessException("Error accessing aliases in keystore $ks", e)
+    }
+  }
+
+  override fun describeKey(alias: String): CipherStorage.KeyDescription {
+    val safeAlias = getDefaultAliasIfEmpty(alias, getDefaultAliasServiceName())
+
+    return try {
+      val keyStore = getKeyStoreAndLoad()
+      if (!keyStore.containsAlias(safeAlias)) {
+        return CipherStorage.KeyDescription(exists = false)
+      }
+
+      // A key that exists but won't load points at a corrupted key rather than a missing one
+      val securityLevel = try {
+        keyStore.getKey(safeAlias, null)?.let { describeSecurityLevel(getKeyInfo(it)) }
+          ?: KEY_UNREADABLE
+      } catch (ignored: Throwable) {
+        KEY_UNREADABLE
+      }
+      CipherStorage.KeyDescription(exists = true, securityLevel = securityLevel)
+    } catch (ignored: Throwable) {
+      CipherStorage.KeyDescription(exists = null)
     }
   }
 
@@ -501,6 +527,22 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
     } catch (e: GeneralSecurityException) {
       Log.w(LOG_TAG, "Failed to check cipher configuration: ${e.message}")
       return false
+    }
+  }
+
+  /** Name where the key lives, so error reports can tell StrongBox keys from TEE ones. */
+  @Suppress("DEPRECATION") // isInsideSecureHardware is the only signal before API 31
+  private fun describeSecurityLevel(keyInfo: KeyInfo): String {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+      return if (keyInfo.isInsideSecureHardware) "SECURE_HARDWARE" else "SOFTWARE"
+    }
+
+    return when (keyInfo.securityLevel) {
+      KeyProperties.SECURITY_LEVEL_STRONGBOX -> "STRONGBOX"
+      KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT -> "TRUSTED_ENVIRONMENT"
+      KeyProperties.SECURITY_LEVEL_SOFTWARE -> "SOFTWARE"
+      KeyProperties.SECURITY_LEVEL_UNKNOWN_SECURE -> "UNKNOWN_SECURE"
+      else -> "UNKNOWN"
     }
   }
 

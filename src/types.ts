@@ -138,3 +138,30 @@ export type SharedWebCredentials = {
   /** The server associated with the keychain item. */
   server: string;
 } & UserCredentials;
+
+/**
+ * Details of a failed save or read, found on the rejected error as `userInfo.keychainDiagnostics`.
+ * Holds exception types, the Keystore's own error and the key's state, never exception messages,
+ * aliases or stored values.
+ * @platform Android
+ */
+export type KeychainDiagnostics = {
+  /** The operation that failed. */
+  operation: 'read' | 'save';
+  /** Exception class names along the cause chain, outermost first. */
+  causes: string[];
+  /** Cipher storage of the entry, such as `KeystoreAESCBC`. */
+  storage?: string;
+  /** Whether the Keystore still holds the entry's key, or null when the Keystore can't be read. */
+  keyExists?: boolean | null;
+  /** Where the key lives, such as `STRONGBOX` or `TRUSTED_ENVIRONMENT`, or `UNREADABLE` when it won't load. */
+  keySecurityLevel?: string | null;
+  /** The Keystore's numeric error code, Android 13 and later. */
+  errorCode?: number;
+  /** The Keystore error's name, such as `KEY_DOES_NOT_EXIST`, Android 13 and later. */
+  errorName?: string;
+  /** Whether the Keystore reports the error as temporary, Android 13 and later. */
+  isTransient?: boolean;
+  /** Whether the Keystore needs the user to authenticate first, Android 13 and later. */
+  requiresUserAuthentication?: boolean;
+};

@@ -9,6 +9,7 @@ import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import android.security.keystore.UserNotAuthenticatedException
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
 import com.oblador.keychain.SecurityLevel
 import com.oblador.keychain.cipherStorage.CipherStorageBase.DecryptBytesHandler
@@ -62,6 +63,15 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
 
     /** [CipherStorage.KeyDescription.securityLevel] of a key that exists but can't be loaded. */
     const val KEY_UNREADABLE = "UNREADABLE"
+
+    /** Retries of a Keystore operation that failed with a transient or system error. */
+    private const val MAX_KEYSTORE_RETRIES = 2
+
+    /** Wait before each retry, multiplied by the attempt number. */
+    private const val KEYSTORE_RETRY_DELAY_MS = 100L
+
+    /** Enough to reach the Keystore's error under the library's own wrappers. */
+    private const val MAX_RETRIABLE_CAUSE_DEPTH = 8
 
     /** Convert provided service name to safe not-null/not-empty value. */
     fun getDefaultAliasIfEmpty(service: String?, fallback: String): String {
@@ -284,6 +294,45 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
     // Attempt to retrieve the key. A one-off read error must not delete it: the key may still be
     // the only one that decrypts the entry already stored under this alias
     return extractExistingKey(safeAlias, retries)
+  }
+
+  /**
+   * Run a Keystore operation again when the system reports its failure as transient or as a
+   * system error (API 33 and later). Any other failure propagates unchanged.
+   */
+  protected fun <T> withKeystoreRetries(block: () -> T): T {
+    var attempt = 0
+    while (true) {
+      try {
+        return block()
+      } catch (fail: Throwable) {
+        if (attempt >= MAX_KEYSTORE_RETRIES || !isRetriableKeystoreFailure(fail)) throw fail
+        attempt++
+        Log.w(LOG_TAG, "Retriable Keystore failure, retrying ($attempt/$MAX_KEYSTORE_RETRIES)", fail)
+        Thread.sleep(KEYSTORE_RETRY_DELAY_MS * attempt)
+      }
+    }
+  }
+
+  private fun isRetriableKeystoreFailure(error: Throwable): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+    return hasRetriableKeystoreCause(error)
+  }
+
+  @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+  private fun hasRetriableKeystoreCause(error: Throwable): Boolean {
+    var current: Throwable? = error
+    var depth = 0
+    while (current != null && depth < MAX_RETRIABLE_CAUSE_DEPTH) {
+      if (current is android.security.KeyStoreException &&
+        (current.isTransientFailure || current.isSystemError)
+      ) {
+        return true
+      }
+      current = current.cause
+      depth++
+    }
+    return false
   }
 
   /**

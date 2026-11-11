@@ -166,9 +166,7 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
     val ks = getKeyStoreAndLoad()
 
     try {
-      if (ks.containsAlias(safeAlias)) {
-        ks.deleteEntry(safeAlias)
-      }
+      ks.deleteEntry(safeAlias)
     } catch (ignored: GeneralSecurityException) {
       /* only one exception can be raised by code: 'KeyStore is not loaded' */
     }
@@ -189,14 +187,15 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
 
     return try {
       val keyStore = getKeyStoreAndLoad()
-      if (!keyStore.containsAlias(safeAlias)) {
-        return CipherStorage.KeyDescription(exists = false)
+      val key = try {
+        keyStore.getKey(safeAlias, null) ?: return CipherStorage.KeyDescription(exists = false)
+      } catch (ignored: Throwable) {
+        // A key that exists but won't load points at a corrupted key rather than a missing one
+        return CipherStorage.KeyDescription(exists = true, securityLevel = KEY_UNREADABLE)
       }
 
-      // A key that exists but won't load points at a corrupted key rather than a missing one
       val securityLevel = try {
-        keyStore.getKey(safeAlias, null)?.let { describeSecurityLevel(getKeyInfo(it)) }
-          ?: KEY_UNREADABLE
+        describeSecurityLevel(getKeyInfo(key))
       } catch (ignored: Throwable) {
         KEY_UNREADABLE
       }
@@ -268,41 +267,23 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
     level: SecurityLevel,
     retries: AtomicInteger
   ): Key {
-    var key: Key?
-    do {
-      val keyStore = getKeyStoreAndLoad()
-      // Check if the key exists
-      if (!keyStore.containsAlias(safeAlias)) {
-        // Key does not exist, generate a new one
-        generateKeyAndStoreUnderAlias(safeAlias, level)
-      } else {
-        // Key exists, check if it's compatible
-        key = keyStore.getKey(safeAlias, null)
-        if (key != null && !isKeyAlgorithmSupported(
-            key,
-            getEncryptionAlgorithm()
-          )
-        ) {
-          Log.w(
-            LOG_TAG,
-            "Incompatible key found for alias: $safeAlias. Expected cipher: ${getEncryptionTransformation()}. " +
-              "This can happen if you try to overwrite credentials that were previously saved with a different encryption algorithm."
-          )
-          // Key is not compatible, delete it
-          keyStore.deleteEntry(safeAlias)
-          // Generate a new compatible key
-          generateKeyAndStoreUnderAlias(safeAlias, level)
-          key = null // Set key to null to retry the loop
-          continue
-        }
-      }
+    val keyStore = getKeyStoreAndLoad()
+    val existing = keyStore.getKey(safeAlias, null)
+    if (existing == null) {
+      generateKeyAndStoreUnderAlias(safeAlias, level)
+    } else if (!isKeyAlgorithmSupported(existing, getEncryptionAlgorithm())) {
+      Log.w(
+        LOG_TAG,
+        "Incompatible key found for alias: $safeAlias. Expected cipher: ${getEncryptionTransformation()}. " +
+          "This can happen if you try to overwrite credentials that were previously saved with a different encryption algorithm."
+      )
+      keyStore.deleteEntry(safeAlias)
+      generateKeyAndStoreUnderAlias(safeAlias, level)
+    }
 
-      // Attempt to retrieve the key. A one-off read error must not delete it: the key may still be
-      // the only one that decrypts the entry already stored under this alias
-      key = extractExistingKey(safeAlias, retries)
-    } while (key == null)
-
-    return key
+    // Attempt to retrieve the key. A one-off read error must not delete it: the key may still be
+    // the only one that decrypts the entry already stored under this alias
+    return extractExistingKey(safeAlias, retries)
   }
 
   /**
@@ -314,13 +295,9 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
   protected fun extractExistingKey(safeAlias: String, retries: AtomicInteger): Key {
     while (true) {
       val keyStore = getKeyStoreAndLoad()
-      if (!keyStore.containsAlias(safeAlias)) {
-        throw KeyStoreAccessException("No key found for alias: $safeAlias")
-      }
-
       try {
         return keyStore.getKey(safeAlias, null)
-          ?: throw KeyStoreAccessException("Empty key extracted!")
+          ?: throw KeyStoreAccessException("No key found for alias: $safeAlias")
       } catch (ex: UnrecoverableKeyException) {
         if (retries.getAndDecrement() <= 0) throw ex
         Log.w(LOG_TAG, "Unrecoverable key for alias: $safeAlias, retrying without deleting it", ex)

@@ -37,6 +37,6 @@ class KeychainModuleBuilder {
   }
 
   companion object {
-    const val DEFAULT_USE_WARM_UP = true
+    const val DEFAULT_USE_WARM_UP = false
   }
 }

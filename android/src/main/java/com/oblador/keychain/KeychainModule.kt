@@ -225,6 +225,14 @@ class KeychainModule(reactContext: ReactApplicationContext) :
           selectedStorage = storage
           throwIfInsufficientLevel(storage, level)
           val promptInfo = getPromptInfo(options)
+          val existing = prefsStorage.getEncryptedEntry(alias)
+          if (existing != null && existing.cipherStorageName != storage.getCipherStorageName()) {
+            val oldStorage = getCipherStorageByName(existing.cipherStorageName)
+            (oldStorage as? CipherStorageBase)?.getKeyStoreAndLoad()
+            // Entry before key: failing in between leaves no entry, not an entry with no key
+            prefsStorage.removeEntry(alias)
+            oldStorage?.removeKey(alias)
+          }
           val result = encryptToResult(alias, storage, username, password, level, promptInfo)
           prefsStorage.storeEncryptedEntry(alias, result)
           val results = Arguments.createMap()
@@ -294,12 +302,13 @@ class KeychainModule(reactContext: ReactApplicationContext) :
           val promptInfo = getPromptInfo(options)
 
           cipher = getCipherStorageByName(storageName)
-          val decryptionResult = decryptCredentials(alias, cipher!!, resultSet, rules, promptInfo)
+            ?: throw CryptoFailedException("Unknown cipher storage: $storageName")
+          val decryptionResult = decryptCredentials(alias, cipher, resultSet, rules, promptInfo)
           val credentials = Arguments.createMap()
           credentials.putString(Maps.SERVICE, alias)
           credentials.putString(Maps.USERNAME, decryptionResult.username)
           credentials.putString(Maps.PASSWORD, decryptionResult.password)
-          credentials.putString(Maps.STORAGE, cipher?.getCipherStorageName())
+          credentials.putString(Maps.STORAGE, cipher.getCipherStorageName())
           promise.resolve(credentials)
         } catch (e: KeyStoreAccessException) {
           Log.e(KEYCHAIN_MODULE, e.message!!)

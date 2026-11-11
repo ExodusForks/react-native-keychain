@@ -92,11 +92,13 @@ class CipherStorageKeystoreAesCbc(reactContext: ReactApplicationContext) :
         val retries = AtomicInteger(1)
 
         try {
-            val key = extractGeneratedKey(safeAlias, level, retries)
+            val result = withKeystoreRetries {
+                val key = extractGeneratedKey(safeAlias, level, retries)
 
-            val result = CipherStorage.EncryptionResult(
-                encryptString(key, username), encryptString(key, password), this
-            )
+                CipherStorage.EncryptionResult(
+                    encryptString(key, username), encryptString(key, password), this
+                )
+            }
             handler.onEncrypt(result, null)
         } catch (e: GeneralSecurityException) {
             throw CryptoFailedException("Could not encrypt data with alias: $alias", e)
@@ -125,11 +127,13 @@ class CipherStorageKeystoreAesCbc(reactContext: ReactApplicationContext) :
         val retries = AtomicInteger(1)
 
         try {
-            val key = extractExistingKey(safeAlias, retries)
+            val results = withKeystoreRetries {
+                val key = extractExistingKey(safeAlias, retries)
 
-            val results = CipherStorage.DecryptionResult(
-                decryptBytes(key, username), decryptBytes(key, password), getSecurityLevel(key)
-            )
+                CipherStorage.DecryptionResult(
+                    decryptBytes(key, username), decryptBytes(key, password), getSecurityLevel(key)
+                )
+            }
             handler.onDecrypt(results, null)
         } catch (e: GeneralSecurityException) {
             throw CryptoFailedException("Could not decrypt data with alias: $alias", e)

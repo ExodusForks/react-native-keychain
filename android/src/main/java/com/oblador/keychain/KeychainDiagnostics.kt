@@ -44,6 +44,7 @@ object KeychainDiagnostics {
       diagnostics["storage"] = storage.getCipherStorageName()
       diagnostics["keyExists"] = key.exists
       diagnostics["keySecurityLevel"] = key.securityLevel
+      diagnostics["keyCreatedAt"] = key.createdAt?.toDouble()
     }
 
     return diagnostics

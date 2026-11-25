@@ -162,6 +162,14 @@ export type KeychainDiagnostics = {
   errorName?: string;
   /** Whether the Keystore reports the error as temporary, Android 13 and later. */
   isTransient?: boolean;
+  /** Whether the Keystore reports a failure of the system or the chip itself, Android 13 and later. */
+  isSystemError?: boolean;
+  /** Android's advice on retrying, such as `NEVER` or `WITH_EXPONENTIAL_BACKOFF`, Android 13 and later. */
+  retryPolicy?: 'NEVER' | 'WITH_EXPONENTIAL_BACKOFF' | 'WHEN_CONNECTIVITY_AVAILABLE' | 'AFTER_NEXT_REBOOT' | 'UNKNOWN';
+  /** The KeyMint (negative) or Keystore (positive) code behind `errorCode`, Android 13 and later. */
+  internalErrorCode?: number | null;
+  /** The Keystore step that failed; `upgrade` means an existing key blob could not be migrated after a system update. */
+  stage?: 'begin' | 'update' | 'finish' | 'upgrade' | null;
   /** Whether the Keystore needs the user to authenticate first, Android 13 and later. */
   requiresUserAuthentication?: boolean;
 };

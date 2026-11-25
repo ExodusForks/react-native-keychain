@@ -8,8 +8,8 @@ import com.oblador.keychain.cipherStorage.CipherStorage
 /**
  * Describes a failed save or read for error reports: exception types, the Keystore's own error and
  * the state of the entry's key. It never includes exception messages, aliases or stored values,
- * which can hold private data, so apps can forward it to their own reports as is. The one thing
- * taken from an exception message is the integer Keystore code Android puts there.
+ * which can hold private data, so apps can forward it to their own reports as is. From the
+ * exception text it only takes the integer Keystore code and which fixed keystore2 phrase appears.
  */
 object KeychainDiagnostics {
   /** Key of the diagnostics in the rejection's `userInfo`. */
@@ -102,10 +102,10 @@ object KeychainDiagnostics {
   private val INTERNAL_CODE = Regex("internal Keystore code: (-?\\d+)")
 
   private val STAGES = listOf(
-    "Upgrade failed" to "upgrade",
-    "Failed to begin operation" to "begin",
-    "Failed to finish operation" to "finish",
-    "Failed to update operation" to "update",
+    "Upgrade failed." to "upgrade",
+    "Failed to begin operation." to "begin",
+    "Finish failed." to "finish",
+    "Update failed." to "update",
   )
 
   private fun keystoreErrorName(code: Int): String =

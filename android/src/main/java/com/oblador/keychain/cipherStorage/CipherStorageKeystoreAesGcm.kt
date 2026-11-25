@@ -81,7 +81,8 @@ class CipherStorageKeystoreAesGcm(reactContext: ReactApplicationContext, private
         alias: String,
         username: String,
         password: String,
-        level: SecurityLevel
+        level: SecurityLevel,
+        mayReplaceKey: Boolean
     ) {
 
         throwIfInsufficientLevel(level)
@@ -91,7 +92,7 @@ class CipherStorageKeystoreAesGcm(reactContext: ReactApplicationContext, private
         var key: Key? = null
 
         try {
-            key = extractGeneratedKey(safeAlias, level, retries)
+            key = extractGeneratedKey(safeAlias, level, retries, mayReplaceKey)
 
             val result = CipherStorage.EncryptionResult(
                 encryptString(key, username), encryptString(key, password), this

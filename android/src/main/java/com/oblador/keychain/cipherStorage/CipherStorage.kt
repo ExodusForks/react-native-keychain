@@ -63,7 +63,8 @@ interface CipherStorage {
     alias: String,
     username: String,
     password: String,
-    level: SecurityLevel
+    level: SecurityLevel,
+    mayReplaceKey: Boolean = true
   )
 
 

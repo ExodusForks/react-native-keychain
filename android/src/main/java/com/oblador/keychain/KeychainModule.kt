@@ -228,14 +228,18 @@ class KeychainModule(
           throwIfInsufficientLevel(storage, level)
           val promptInfo = getPromptInfo(options)
           val existing = prefsStorage.getEncryptedEntry(alias)
-          if (existing != null && existing.cipherStorageName != storage.getCipherStorageName()) {
-            val oldStorage = getCipherStorageByName(existing.cipherStorageName)
+          val oldStorageName =
+            existing?.cipherStorageName?.takeIf { it != storage.getCipherStorageName() }
+          if (oldStorageName != null) {
+            val oldStorage = getCipherStorageByName(oldStorageName)
             (oldStorage as? CipherStorageBase)?.getKeyStoreAndLoad()
             // Entry before key: failing in between leaves no entry, not an entry with no key
             prefsStorage.removeEntry(alias)
             oldStorage?.removeKey(alias)
           }
-          val result = encryptToResult(alias, storage, username, password, level, promptInfo)
+          val result = encryptToResult(
+            alias, storage, username, password, level, promptInfo, mayReplaceKey = existing == null || oldStorageName != null
+          )
           prefsStorage.storeEncryptedEntry(alias, result)
           val results = Arguments.createMap()
           results.putString(Maps.SERVICE, alias)
@@ -599,10 +603,11 @@ class KeychainModule(
     username: String,
     password: String,
     securityLevel: SecurityLevel,
-    promptInfo: PromptInfo
+    promptInfo: PromptInfo,
+    mayReplaceKey: Boolean = true
   ): CipherStorage.EncryptionResult {
     val handler = getInteractiveHandler(storage, promptInfo)
-    storage.encrypt(handler, alias, username, password, securityLevel)
+    storage.encrypt(handler, alias, username, password, securityLevel, mayReplaceKey)
     CryptoFailedException.reThrowOnError(handler.error)
     if (null == handler.encryptionResult) {
       throw CryptoFailedException("No decryption results and no error. Something deeply wrong!")

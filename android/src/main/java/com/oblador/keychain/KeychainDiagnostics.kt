@@ -8,7 +8,8 @@ import com.oblador.keychain.cipherStorage.CipherStorage
 /**
  * Describes a failed save or read for error reports: exception types, the Keystore's own error and
  * the state of the entry's key. It never includes exception messages, aliases or stored values,
- * which can hold private data, so apps can forward it to their own reports as is.
+ * which can hold private data, so apps can forward it to their own reports as is. The one thing
+ * taken from an exception message is the integer Keystore code Android puts there.
  */
 object KeychainDiagnostics {
   /** Key of the diagnostics in the rejection's `userInfo`. */
@@ -64,9 +65,48 @@ object KeychainDiagnostics {
     mapOf(
       "errorCode" to error.numericErrorCode,
       "errorName" to keystoreErrorName(error.numericErrorCode),
+      "internalErrorCode" to internalErrorCode(error),
       "isTransient" to error.isTransientFailure,
+      "isSystemError" to error.isSystemError,
+      "retryPolicy" to retryPolicyName(error.retryPolicy),
+      "stage" to failedStage(error),
       "requiresUserAuthentication" to error.requiresUserAuthentication(),
     )
+
+  /**
+   * The KeyMint (negative) or Keystore (positive) code behind the public one. Android only exposes
+   * it inside the exception text, as "internal Keystore code: N".
+   */
+  private fun internalErrorCode(error: KeyStoreException): Int? =
+    INTERNAL_CODE.find(error.toString())?.groupValues?.get(1)?.toIntOrNull()
+
+  @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+  private fun retryPolicyName(policy: Int): String =
+    when (policy) {
+      KeyStoreException.RETRY_NEVER -> "NEVER"
+      KeyStoreException.RETRY_WITH_EXPONENTIAL_BACKOFF -> "WITH_EXPONENTIAL_BACKOFF"
+      KeyStoreException.RETRY_WHEN_CONNECTIVITY_AVAILABLE -> "WHEN_CONNECTIVITY_AVAILABLE"
+      KeyStoreException.RETRY_AFTER_NEXT_REBOOT -> "AFTER_NEXT_REBOOT"
+      else -> "UNKNOWN"
+    }
+
+  /**
+   * Which Keystore step failed, from the fixed phrases keystore2 adds to the exception text. An
+   * upgrade failure means an existing key blob could not be migrated after a system update.
+   */
+  private fun failedStage(error: KeyStoreException): String? {
+    val text = error.toString()
+    return STAGES.firstOrNull { (phrase, _) -> text.contains(phrase) }?.second
+  }
+
+  private val INTERNAL_CODE = Regex("internal Keystore code: (-?\\d+)")
+
+  private val STAGES = listOf(
+    "Upgrade failed" to "upgrade",
+    "Failed to begin operation" to "begin",
+    "Failed to finish operation" to "finish",
+    "Failed to update operation" to "update",
+  )
 
   private fun keystoreErrorName(code: Int): String =
     when (code) {

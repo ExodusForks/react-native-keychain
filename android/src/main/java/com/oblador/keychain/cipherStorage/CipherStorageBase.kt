@@ -204,7 +204,11 @@ abstract class CipherStorageBase(
         keyStore.getKey(safeAlias, null) ?: return CipherStorage.KeyDescription(exists = false)
       } catch (ignored: Throwable) {
         // A key that exists but won't load points at a corrupted key rather than a missing one
-        return CipherStorage.KeyDescription(exists = true, securityLevel = KEY_UNREADABLE)
+        return CipherStorage.KeyDescription(
+          exists = true,
+          securityLevel = KEY_UNREADABLE,
+          createdAt = keyCreationTime(keyStore, safeAlias)
+        )
       }
 
       val securityLevel = try {
@@ -212,9 +216,21 @@ abstract class CipherStorageBase(
       } catch (ignored: Throwable) {
         KEY_UNREADABLE
       }
-      CipherStorage.KeyDescription(exists = true, securityLevel = securityLevel)
+      CipherStorage.KeyDescription(
+        exists = true,
+        securityLevel = securityLevel,
+        createdAt = keyCreationTime(keyStore, safeAlias)
+      )
     } catch (ignored: Throwable) {
       CipherStorage.KeyDescription(exists = null)
+    }
+  }
+
+  private fun keyCreationTime(keyStore: KeyStore, alias: String): Long? {
+    return try {
+      keyStore.getCreationDate(alias)?.time
+    } catch (ignored: Throwable) {
+      null
     }
   }
 

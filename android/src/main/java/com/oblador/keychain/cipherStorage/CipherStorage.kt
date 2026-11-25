@@ -42,7 +42,9 @@ interface CipherStorage {
     /** Whether the Keystore holds a key under the alias, or null when the Keystore can't be read. */
     val exists: Boolean?,
     /** Where the key lives, such as `STRONGBOX`, or `UNREADABLE` when it exists but won't load. */
-    val securityLevel: String? = null
+    val securityLevel: String? = null,
+    /** When the key was created, in epoch milliseconds, or null when the Keystore does not say. */
+    val createdAt: Long? = null
   )
 
   // endregion

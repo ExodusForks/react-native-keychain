@@ -156,6 +156,8 @@ export type KeychainDiagnostics = {
   keyExists?: boolean | null;
   /** Where the key lives, such as `STRONGBOX` or `TRUSTED_ENVIRONMENT`, or `UNREADABLE` when it won't load. */
   keySecurityLevel?: string | null;
+  /** When the key was created, in epoch milliseconds, or null when the Keystore does not say. */
+  keyCreatedAt?: number | null;
   /** The Keystore's numeric error code, Android 13 and later. */
   errorCode?: number;
   /** The Keystore error's name, such as `KEY_DOES_NOT_EXIST`, Android 13 and later. */

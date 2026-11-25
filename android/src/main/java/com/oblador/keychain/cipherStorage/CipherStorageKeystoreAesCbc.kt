@@ -25,8 +25,10 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.IvParameterSpec
 
 @TargetApi(Build.VERSION_CODES.M)
-class CipherStorageKeystoreAesCbc(reactContext: ReactApplicationContext) :
-    CipherStorageBase(reactContext) {
+class CipherStorageKeystoreAesCbc(
+    reactContext: ReactApplicationContext,
+    useStrongBox: Boolean = true
+) : CipherStorageBase(reactContext, useStrongBox) {
 
     // region Constants
     /** AES */

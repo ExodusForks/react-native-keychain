@@ -32,8 +32,10 @@ import javax.crypto.NoSuchPaddingException
 /** Fingerprint biometry protected storage. */
 @RequiresApi(Build.VERSION_CODES.M)
 @Suppress("unused", "WeakerAccess")
-class CipherStorageKeystoreRsaEcb(reactContext: ReactApplicationContext) :
-  CipherStorageBase(reactContext) {
+class CipherStorageKeystoreRsaEcb(
+  reactContext: ReactApplicationContext,
+  useStrongBox: Boolean = true
+) : CipherStorageBase(reactContext, useStrongBox) {
 
   companion object {
     /** Selected algorithm. */

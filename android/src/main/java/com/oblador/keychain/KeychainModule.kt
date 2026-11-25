@@ -36,8 +36,10 @@ import kotlinx.coroutines.sync.withLock
 
 @ReactModule(name = KeychainModule.KEYCHAIN_MODULE)
 @Suppress("unused")
-class KeychainModule(reactContext: ReactApplicationContext) :
-  ReactContextBaseJavaModule(reactContext) {
+class KeychainModule(
+  reactContext: ReactApplicationContext,
+  private val useStrongBox: Boolean = true
+) : ReactContextBaseJavaModule(reactContext) {
   @StringDef(
     AccessControl.NONE,
     AccessControl.USER_PRESENCE,
@@ -150,13 +152,13 @@ class KeychainModule(reactContext: ReactApplicationContext) :
   /** Default constructor. */
   init {
     prefsStorage = DataStorePrefsStorage(reactContext, coroutineScope)
-    addCipherStorageToMap(CipherStorageKeystoreAesCbc(reactContext))
+    addCipherStorageToMap(CipherStorageKeystoreAesCbc(reactContext, useStrongBox))
     // addCipherStorageToMap(CipherStorageKeystoreAesGcm(reactContext, false))
     // addCipherStorageToMap(CipherStorageKeystoreAesGcm(reactContext, true))
 
     // we have a references to newer api that will fail load of app classes in old androids OS
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      addCipherStorageToMap(CipherStorageKeystoreRsaEcb(reactContext))
+      addCipherStorageToMap(CipherStorageKeystoreRsaEcb(reactContext, useStrongBox))
     }
   }
 
@@ -758,8 +760,11 @@ class KeychainModule(reactContext: ReactApplicationContext) :
     private val LOG_TAG = KeychainModule::class.java.simpleName
 
     /** Allow initialization in chain. */
-    fun withWarming(reactContext: ReactApplicationContext): KeychainModule {
-      val instance = KeychainModule(reactContext)
+    fun withWarming(
+      reactContext: ReactApplicationContext,
+      useStrongBox: Boolean = true
+    ): KeychainModule {
+      val instance = KeychainModule(reactContext, useStrongBox)
 
       // force initialization of the crypto api in background thread
       val warmingUp = Thread({ instance.internalWarmingBestCipher() }, "keychain-warming-up")

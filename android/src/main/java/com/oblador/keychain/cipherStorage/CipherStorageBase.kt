@@ -40,7 +40,10 @@ import javax.crypto.NoSuchPaddingException
 
 
 @Suppress("unused", "MemberVisibilityCanBePrivate", "UnusedReturnValue")
-abstract class CipherStorageBase(protected val applicationContext: Context) : CipherStorage {
+abstract class CipherStorageBase(
+  protected val applicationContext: Context,
+  private val useStrongBox: Boolean = true
+) : CipherStorage {
   // region Constants
   /** Logging tag. */
   protected val LOG_TAG = CipherStorageBase::class.java.simpleName
@@ -101,9 +104,9 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
   /** Guard object for [isSupportsSecureHardware] field. */
   protected val _sync = Any()
 
-  /** Try to resolve support of the StrongBox feature. */
+  /** Whether new keys may go to the StrongBox chip: the app allows it and the phone has one. */
   protected val isStrongboxAvailable: Boolean by lazy {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+    if (useStrongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
       applicationContext.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
     } else {
       false

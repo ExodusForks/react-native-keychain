@@ -91,8 +91,9 @@ object KeychainDiagnostics {
     }
 
   /**
-   * Which Keystore step failed, from the fixed phrases keystore2 adds to the exception text. An
-   * upgrade failure means an existing key blob could not be migrated after a system update.
+   * Which Keystore step failed, from the fixed context keystore2 adds to the exception text on every
+   * Android version. An upgrade failure means an existing key blob could not be migrated after a
+   * system update.
    */
   private fun failedStage(error: KeyStoreException): String? {
     val text = error.toString()
@@ -104,8 +105,8 @@ object KeychainDiagnostics {
   private val STAGES = listOf(
     "Upgrade failed." to "upgrade",
     "Failed to begin operation." to "begin",
-    "Finish failed." to "finish",
-    "Update failed." to "update",
+    "KeystoreOperation::finish" to "finish",
+    "KeystoreOperation::update" to "update",
   )
 
   private fun keystoreErrorName(code: Int): String =

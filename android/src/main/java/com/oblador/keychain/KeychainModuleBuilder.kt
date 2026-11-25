@@ -5,6 +5,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 class KeychainModuleBuilder {
   private var reactContext: ReactApplicationContext? = null
   private var useWarmUp = DEFAULT_USE_WARM_UP
+  private var useStrongBox = DEFAULT_USE_STRONG_BOX
 
   fun withReactContext(reactContext: ReactApplicationContext?): KeychainModuleBuilder {
     this.reactContext = reactContext
@@ -21,12 +22,23 @@ class KeychainModuleBuilder {
     return this
   }
 
+  /** Create new Keystore keys in the TEE even when the phone has a StrongBox chip. */
+  fun withoutStrongBox(): KeychainModuleBuilder {
+    useStrongBox = false
+    return this
+  }
+
+  fun usingStrongBox(): KeychainModuleBuilder {
+    useStrongBox = true
+    return this
+  }
+
   fun build(): KeychainModule {
     validate()
     return if (useWarmUp) {
-      KeychainModule.withWarming(reactContext!!)
+      KeychainModule.withWarming(reactContext!!, useStrongBox)
     } else {
-      KeychainModule(reactContext!!)
+      KeychainModule(reactContext!!, useStrongBox)
     }
   }
 
@@ -38,5 +50,6 @@ class KeychainModuleBuilder {
 
   companion object {
     const val DEFAULT_USE_WARM_UP = false
+    const val DEFAULT_USE_STRONG_BOX = true
   }
 }

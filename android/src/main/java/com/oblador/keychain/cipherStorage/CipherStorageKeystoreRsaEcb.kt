@@ -61,14 +61,15 @@ class CipherStorageKeystoreRsaEcb(
     alias: String,
     username: String,
     password: String,
-    level: SecurityLevel
+    level: SecurityLevel,
+    mayReplaceKey: Boolean
   ) {
     throwIfInsufficientLevel(level)
 
     val safeAlias = getDefaultAliasIfEmpty(alias, getDefaultAliasServiceName())
     val retries = AtomicInteger(1)
     try {
-      extractGeneratedKey(safeAlias, level, retries)
+      extractGeneratedKey(safeAlias, level, retries, mayReplaceKey)
       val result = innerEncryptedCredentials(safeAlias, password, username)
       handler.onEncrypt(result, null)
     } catch (e: Exception) {

@@ -85,7 +85,8 @@ class CipherStorageKeystoreAesCbc(
         alias: String,
         username: String,
         password: String,
-        level: SecurityLevel
+        level: SecurityLevel,
+        mayReplaceKey: Boolean
     ) {
 
         throwIfInsufficientLevel(level)
@@ -95,7 +96,7 @@ class CipherStorageKeystoreAesCbc(
 
         try {
             val result = withKeystoreRetries {
-                val key = extractGeneratedKey(safeAlias, level, retries)
+                val key = extractGeneratedKey(safeAlias, level, retries, mayReplaceKey)
 
                 CipherStorage.EncryptionResult(
                     encryptString(key, username), encryptString(key, password), this

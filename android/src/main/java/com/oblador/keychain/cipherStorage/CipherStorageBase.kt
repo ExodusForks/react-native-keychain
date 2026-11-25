@@ -294,13 +294,19 @@ abstract class CipherStorageBase(
   protected fun extractGeneratedKey(
     safeAlias: String,
     level: SecurityLevel,
-    retries: AtomicInteger
+    retries: AtomicInteger,
+    mayReplaceKey: Boolean = true
   ): Key {
     val keyStore = getKeyStoreAndLoad()
     val existing = keyStore.getKey(safeAlias, null)
     if (existing == null) {
       generateKeyAndStoreUnderAlias(safeAlias, level)
     } else if (!isKeyAlgorithmSupported(existing, getEncryptionAlgorithm())) {
+      if (!mayReplaceKey) {
+        throw CryptoFailedException(
+          "Key for alias $safeAlias does not fit ${getEncryptionTransformation()} and a stored entry still depends on it"
+        )
+      }
       Log.w(
         LOG_TAG,
         "Incompatible key found for alias: $safeAlias. Expected cipher: ${getEncryptionTransformation()}. " +
